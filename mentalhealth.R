@@ -184,11 +184,101 @@ write.csv(as.data.frame(summary(logistic_mental2$finalModel)$coef), file="regres
 
 
 # Classifier #2 : Outcome = discussing_supervisor
+mental <- read.csv("./mental_clean.csv") 
+mental_sub <- mental %>% filter(self_employed == "No") 
+mental_sub$discussing_supervisor[mental_sub$discussing_supervisor =="Some of them"] <- "Yes"
+mental_sub$self_employed <-NULL
+mental <- mental_sub %>% mutate(id = row_number()) 
+train <- mental %>% sample_frac(.80)
+test  <- anti_join(mental , train, by = "id")
+
+
+trControl <- trainControl(method  = "cv",
+                          number  = 5,
+                          summaryFunction =  twoClassSummaryCustom, #Needed for ROC metric
+                          savePredictions = "all", #Needed for thresholder
+                          classProbs = T #Needed for classification
+) 
+
+logistic_mental3 <- caret::train(discussing_supervisor ~ age + gender + region + mi_fhx + employees_number + remote_work + 
+                                   tech_company + employer_mi_wellnessprogram + employer_resources + mi_workinterference + mi_benefits + mi_benefits_awareness +
+                                   anonymity_protection	+ medical_leave_ease	+ discussing_negative	+ discussing_interview +discussing_physical	+ employer_seriousness + observed_negative,
+                                 method     = "glm",
+                                 preProcess = c("range"),
+                                 metric     = "ROC",
+                                 trControl  = trControl,
+                                 data = mental)
+
+logistic_mental_no3 <- caret::train(discussing_supervisor ~ age + gender + region + mi_fhx + employees_number + remote_work + 
+                                      tech_company + employer_mi_wellnessprogram + employer_resources + mi_workinterference + mi_benefits + mi_benefits_awareness +
+                                      anonymity_protection	+ medical_leave_ease	+ discussing_negative	+ discussing_interview +discussing_physical	+ employer_seriousness + observed_negative,
+                                   method     = "glm",                                 
+                                   metric     = "ROC",
+                                   trControl  = trControl,
+                                   data = mental)
+
+
+tg <- expand.grid(shrinkage = seq(0.1, 1, by = 0.2), 
+                  interaction.depth = c(1, 3, 7, 10),
+                  n.minobsinnode = c(2, 5, 10),
+                  n.trees = c(100, 300, 500, 1000))                        
+
+
+modeldt3 <- caret::train(discussing_supervisor ~ age + gender + region + mi_fhx + employees_number + remote_work + 
+                           tech_company + employer_mi_wellnessprogram + employer_resources + mi_workinterference + mi_benefits + mi_benefits_awareness +
+                           anonymity_protection	+ medical_leave_ease	+ discussing_negative	+ discussing_interview +discussing_physical	+ employer_seriousness + observed_negative,
+                        method     = "rpart",
+                        metric     = "ROC",
+                        trControl  = trControl,
+                        data = mental)
+
+rpart.plot::rpart.plot(modeldt3$finalModel, type = 4, fallen.leaves = TRUE, extra = 2)
+
+
+gbm_model3 <- caret::train(discussing_supervisor ~ age + gender + region + mi_fhx + employees_number + remote_work + 
+                             tech_company + employer_mi_wellnessprogram + employer_resources + mi_workinterference + mi_benefits + mi_benefits_awareness +
+                             anonymity_protection	+ medical_leave_ease	+ discussing_negative	+ discussing_interview +discussing_physical	+ employer_seriousness + observed_negative,
+                          method     = "gbm",
+                          metric     = "ROC",
+                          trControl  = trControl,
+                          data = mental)
+
+library(randomForest)
+modelrf3 <- caret::train(discussing_supervisor ~ age + gender + region + mi_fhx + employees_number + remote_work + 
+                           tech_company + employer_mi_wellnessprogram + employer_resources + mi_workinterference + mi_benefits + mi_benefits_awareness +
+                           anonymity_protection	+ medical_leave_ease	+ discussing_negative	+ discussing_interview +discussing_physical	+ employer_seriousness + observed_negative,
+                        method     = "rf",
+                        metric     = "ROC",
+                        trControl  = trControl,
+                        data = mental)
+
+
+
+modelSVM3 <- caret::train(discussing_supervisor ~ age + gender + region + mi_fhx + employees_number + remote_work + 
+                            tech_company + employer_mi_wellnessprogram + employer_resources + mi_workinterference + mi_benefits + mi_benefits_awareness +
+                            anonymity_protection	+ medical_leave_ease	+ discussing_negative	+ discussing_interview +discussing_physical	+ employer_seriousness + observed_negative,
+                         method     = "svmRadial",
+                         metric     = "ROC",
+                         trControl  = trControl,
+                         data = mental)
+
+
+results3 <- resamples(list("Random Forest"=modelrf3, "SVM"=modelSVM3, "Logistic Regression"=logistic_mental3, "Decision Tree" = modeldt3, "Gradient Boosting" = gbm_model3), metric="accuracy")
+
+
+# summarize the distributions
+summary(results3)
+
+dotplot(results3)
+
+plot(varImp(logistic_mental3))
+
+write.csv(as.data.frame(summary(logistic_mental3$finalModel)$coef), file="regression3.csv" )
 
 
 
 # Bias
-
+mental <- read.csv("./mental_clean.csv") 
 p <-ggplot(mental, aes(x=gender, fill=mi_treatment)) +
   geom_bar(position="stack", alpha=0.5) +
   theme(legend.position="top", axis.text.x = element_text(angle=90, hjust=1))+
